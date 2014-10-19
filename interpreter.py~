@@ -1,28 +1,15 @@
 import os
 import sys
 
-try:
-    from rpython.rlib.jit import JitDriver
-except ImportError:
-    class JitDriver(object):
-        def __init__(self,**kw): pass
-        def jit_merge_point(self,**kw): pass
-        def can_enter_jit(self,**kw): pass
+from rpython.rlib import jit
 
-def get_location(pc, program, bracket_map):
-    return "%s" % (
-            program[pc]
-            )
-
-jitdriver = JitDriver(greens=['pc', 'program'], reds=['stack'],
-        get_printable_location=get_location)
+jitdriver = jit.JitDriver(greens=['pc', 'program'], reds=['stack'])
 
 
-def execute(program, stack_limit):
-	stack = Stack(stack_limit)
+def execute(program, stack):
 	pc = 0
 	while pc < len(program):
-		jitdriver.jit_merge_point(pc=pc, stack=stack, program=program)
+		jitdriver.jit_merge_point(pc=pc, program=program, stack=stack)
     #ADD=0, SUB=1, PRINT=2, JUMP=3, INT=4, JNZERO = 5, FIB = 6
 		line = program[pc]
 		
@@ -129,6 +116,8 @@ def program_interpreter(p):
 			program.append(6)
 			program.append(int(line.strip("FIB ")))
 		counter +=1
+	
+	stack = Stack(stack_limit)
 	execute(program, stack_limit)
 
 
