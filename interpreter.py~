@@ -46,7 +46,7 @@ def execute(program, stack_limit):
 				pc += 2
 		elif line == 6:
 			result = fib(program[pc + 1])
-			stack.push(result)
+			stack.push(x)
 			pc += 2
 
 
