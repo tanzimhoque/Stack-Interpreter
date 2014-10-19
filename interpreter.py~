@@ -8,17 +8,21 @@ except ImportError:
         def __init__(self,**kw): pass
         def jit_merge_point(self,**kw): pass
         def can_enter_jit(self,**kw): pass
-        
 
-            
-jitdriver = JitDriver(greens=['pc', 'program'], reds=['stack'])
+def get_location(pc, program, bracket_map):
+    return "%s" % (
+            program[pc]
+            )
+
+jitdriver = JitDriver(greens=['pc', 'program'], reds=['stack'],
+        get_printable_location=get_location)
+
 
 def execute(program, stack_limit):
 	stack = Stack(stack_limit)
 	pc = 0
 	while pc < len(program):
-		jitdriver.jit_merge_point(pc=pc, program=program,
-                stack=stack)
+		jitdriver.jit_merge_point(pc=pc, stack=stack, program=program)
     #ADD=0, SUB=1, PRINT=2, JUMP=3, INT=4, JNZERO = 5, FIB = 6
 		line = program[pc]
 		
@@ -46,7 +50,7 @@ def execute(program, stack_limit):
 				pc += 2
 		elif line == 6:
 			result = fib(program[pc + 1])
-			stack.push(x)
+			stack.push(result)
 			pc += 2
 
 
@@ -65,7 +69,7 @@ def fib(number):
 			counter += 1
 		return fibonacci
 
-class Stack:
+class Stack(object):
 	def __init__(self, stack_limit):
 		self.stack = [0] * stack_limit
 		self.pointer = 0;
@@ -142,8 +146,8 @@ def target(*args):
     return entry_point, None
     
 def jitpolicy(driver):
-    from rpython.jit.codewriter.policy import JitPolicy
-    return JitPolicy()
+	from rpython.jit.codewriter.policy import JitPolicy
+	return JitPolicy()
 
 if __name__ == "__main__":
     entry_point(sys.argv)
