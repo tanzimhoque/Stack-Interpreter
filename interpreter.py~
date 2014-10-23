@@ -3,58 +3,80 @@ import sys
 
 from rpython.rlib import jit
 
-jitdriver = jit.JitDriver(greens=['pc', 'program'], reds=['stack'])
+INSTR_ADD = 0
+INSTR_SUB = 1
+INSTR_PRINT = 2
+INSTR_JUMP = 3
+INSTR_INT = 4
+INSTR_JNZERO = 5
+INSTR_LOAD = 6
+INSTR_STORE = 7
+INSTR_POP = 8
+INSTR_SWITCH = 9
 
 
-def execute(program, stack):
+jitdriver = jit.JitDriver(greens=['pc', 'program'], reds=['stack', 'memory'])
+
+def execute(program, stack, memory):
 	pc = 0
 	while pc < len(program):
-		jitdriver.jit_merge_point(pc=pc, program=program, stack=stack)
-    #ADD=0, SUB=1, PRINT=2, JUMP=3, INT=4, JNZERO = 5, FIB = 6
+		jitdriver.can_enter_jit(pc=pc, program=program, stack=stack, memory=memory)
+		jitdriver.jit_merge_point(pc=pc, program=program, stack=stack, memory=memory)
+    	#ADD=0, SUB=1, PRINT=2, JUMP=3, INT=4, JNZERO = 5, LOAD = 6, STORE = 7
 		line = program[pc]
 		
-		if line == 0:
+		if line == INSTR_ADD:
 			result = (stack.pop() + stack.pop())
 			stack.push(result)
 			pc += 2
-		elif line == 1:
+		elif line == INSTR_SUB:
 			result = stack.pop() - program[pc + 1]
 			stack.push(result)
 			pc += 2
-		elif line == 2:
+		elif line == INSTR_PRINT:
 			output = stack.pop()
 			print output
 			pc += 2
-		elif line == 3:
+		elif line == INSTR_JUMP:
 			pc = (program[pc + 1] * 2)
-		elif line == 4:
+		elif line == INSTR_INT:
 			stack.push(program[pc + 1])
 			pc += 2
-		elif line == 5:
+		elif line == INSTR_JNZERO:
 			if stack.stack[stack.pointer - 1] != 0:
 				pc = (program[pc + 1] * 2)
 			else:
 				pc += 2
-		elif line == 6:
-			result = fib(program[pc + 1])
-			stack.push(result)
+		elif line == INSTR_LOAD:
+			output = memory.pop()
+			stack.push(output)
 			pc += 2
+		elif line == INSTR_STORE:
+			output = stack.stack[stack.pointer - 1]
+			memory.push(output)
+			pc += 2
+		elif line == INSTR_POP:
+			output = stack.pop();
+			pc += 2
+		elif line == INSTR_SWITCH:
+			temp = stack.stack[stack.pointer - 1]
+			stack.stack[stack.pointer - 1] = stack.stack[stack.pointer - 2]
+			stack.stack[stack.pointer - 2] = temp
+			pc += 2
+		
 
-
-def fib(number):
-	if number == 1 or number == 2:
-		return 1
-	else:
-		fibonacci = 0
-		a = 1
-		b = 1
-		counter = 3
-		while counter < number:
-			fibonacci = a + b
-			a = b
-			b = fibonacci
-			counter += 1
-		return fibonacci
+class Memory(object):
+	def __init__(self, memory_limit):
+		self.stack = [0] * memory_limit
+		self.pointer = 0;
+	
+	def pop(self):
+		self.pointer -= 1
+		return self.stack[self.pointer]
+	
+	def push(self, input):
+		self.stack[self.pointer] = input
+		self.pointer += 1
 
 class Stack(object):
 	def __init__(self, stack_limit):
@@ -85,41 +107,70 @@ def run(fp):
     program_interpreter(p)
     
 def program_interpreter(p):
-    #ADD=0, SUB=1, PRINT=2, JUMP=3, INT=4, JNZERO = 5, FIB 6
-	counter = 0
 	stack_limit = 0
+	memory_limit = 0
+	
+	max_stack_limit = 0
+	max_memory_limit = 0
+	
 	program = []
+	
+	counter = 0
     
 	while counter < len(p):
    		line = p[counter]
 		if line[:3] == "ADD":
-			program.append(0)
+			stack_limit -= 1
+			program.append(INSTR_ADD)
 			program.append(0)			
 		elif line[:3] == "INT":
 			stack_limit += 1
-			program.append(4)
+			program.append(INSTR_INT)
 			program.append(int(line.strip("INT ")))
 		elif line[:4] == "JUMP":
-			program.append(3)
+			program.append(INSTR_JUMP)
 			program.append(int(line.strip("JUMP ")))
 		elif line[:3] == "SUB":
-			program.append(1)
+			program.append(INSTR_SUB)
 			program.append(int(line.strip("SUB ")))
 		elif line[:6] == "JNZERO":
-			program.append(5)
+			program.append(INSTR_JNZERO)
 			program.append(int(line.strip("JNZERO ")))
 		elif line[:5] == "PRINT":
-			program.append(2)
+			program.append(INSTR_PRINT)
 			program.append(0)
-		elif line[:3] == "FIB":
+		elif line[:4] == "LOAD":
 			stack_limit += 1
-			program.append(6)
-			program.append(int(line.strip("FIB ")))
+			memory_limit -= 1
+			program.append(INSTR_LOAD)
+			program.append(0)
+		elif line[:5] == "STORE":
+			memory_limit += 1
+			program.append(INSTR_STORE)
+			program.append(0)
+		elif  line[:4] == "POP":
+			stack_limit -=1
+			program.append(INSTR_POP)
+			program.append(0)
+		elif line[:6] == "SWITCH":
+			program.append(INSTR_SWITCH)
+			program.append(0)
+		
+		max_stack_limit = max(max_stack_limit, stack_limit)
+		max_memory_limit = max(max_memory_limit, memory_limit)
+					
 		counter +=1
 	
-	stack = Stack(stack_limit)
-	execute(program, stack_limit)
+	stack = Stack(max_stack_limit)
+	memory = Memory(max_memory_limit)
+	execute(program, stack, memory)
 
+
+def max(a, b):
+	if a > b:
+		return a
+	else:
+		return b
 
 def entry_point(argv):
     try:

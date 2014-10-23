@@ -1,0 +1,5 @@
+INT 3
+INT 2
+ADD
+PRINT
+JUMP 0
